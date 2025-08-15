@@ -24,7 +24,7 @@ const unsigned char* logos[] = { btc_logo, eth_logo, doge_logo, rvn_logo };
 const char* symbols[] = { "BTC", "ETH", "DOGE", "RVN" };
 const char* ids[] = { "bitcoin", "ethereum", "dogecoin", "ravencoin" };
 float prices[4] = {0};
-float changes[4] = {0}; // 24h % changes
+float changes[12] = {0}; // 3 changes per coin (1h, 24h, 7d)
 
 int currentCoin = 0;
 unsigned long lastSwitchTime = 0;
@@ -63,7 +63,7 @@ void fetchPrices() {
   }
 
   HTTPClient http;
-  http.begin("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,dogecoin,ravencoin&vs_currencies=usd&include_24hr_change=true");
+  http.begin("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,dogecoin,ravencoin&price_change_percentage=1h,24h,7d");
 
   int httpCode = http.GET();
   if (httpCode != 200) {
@@ -73,7 +73,7 @@ void fetchPrices() {
   }
 
   String payload = http.getString();
-  DynamicJsonDocument doc(2048); // more space for extra data
+  DynamicJsonDocument doc(8192);
   DeserializationError error = deserializeJson(doc, payload);
   if (error) {
     Serial.print("JSON parse error: ");
@@ -82,19 +82,14 @@ void fetchPrices() {
     return;
   }
 
-  prices[0] = doc["bitcoin"]["usd"];
-  changes[0] = doc["bitcoin"]["usd_24h_change"];
+  for (int i = 0; i < 4; i++) {
+    prices[i] = doc[i]["current_price"];
+    changes[i * 3 + 0] = doc[i]["price_change_percentage_1h_in_currency"];
+    changes[i * 3 + 1] = doc[i]["price_change_percentage_24h_in_currency"];
+    changes[i * 3 + 2] = doc[i]["price_change_percentage_7d_in_currency"];
+  }
 
-  prices[1] = doc["ethereum"]["usd"];
-  changes[1] = doc["ethereum"]["usd_24h_change"];
-
-  prices[2] = doc["dogecoin"]["usd"];
-  changes[2] = doc["dogecoin"]["usd_24h_change"];
-
-  prices[3] = doc["ravencoin"]["usd"];
-  changes[3] = doc["ravencoin"]["usd_24h_change"];
-
-  Serial.println("Prices and changes updated");
+  Serial.println("Prices and % changes updated");
   http.end();
 }
 
@@ -114,19 +109,24 @@ void showCoin(int index) {
   display.setTextSize(2);
   display.setCursor(0, 22);
   // Precision varies by value
-  if (prices[index] > 999) {
-    display.printf("$%.1f", prices[index]);
+  if (prices[index] > 9999) {
+    display.printf("$%.0f", prices[index]);
   }
-  else if (prices[index] > 9) {
+  else if (prices[index] > 999) {
       display.printf("$%.2f", prices[index]);
   }
+  else if (prices[index] > 9) {
+      display.printf("$%.3f", prices[index]);
+  }
   else {
-      display.printf("$%.4f", prices[index]);
+      display.printf("$%.5f", prices[index]);
   }
 
   display.setTextSize(1);
-  display.setCursor(0, 52);
-  display.printf("24h: %+2.1f%%", changes[index]);
+  display.setCursor(0, 48);
+  display.printf("1h:%+2.0f%% 24h:%+2.0f%%", changes[index*3], changes[index*3+1]);
+  display.setCursor(0, 56);
+  display.printf("7d:%+2.0f%%", changes[index*3+2]);
   
   display.display();
 }
