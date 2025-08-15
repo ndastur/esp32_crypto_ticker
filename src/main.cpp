@@ -136,8 +136,8 @@ void setup() {
   delay(100);
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println("SSD1306 failed");
-    while (true);
+    Serial.println("SSD1306 display setup failed");
+    while (true); // loop forever
   }
 
   display.clearDisplay();
